@@ -29,5 +29,5 @@ output "backend_irsa_role_arn" {
 }
 
 output "vpc_id" {
-  value = module.vpc.vpc_id
+  value = local.vpc_id
 }

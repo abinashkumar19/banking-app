@@ -7,8 +7,8 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  vpc_id     = local.vpc_id
+  subnet_ids = local.private_subnet_ids
 
   enable_cluster_creator_admin_permissions = true
 
@@ -132,7 +132,7 @@ resource "helm_release" "alb_controller" {
 
   set {
     name  = "vpcId"
-    value = module.vpc.vpc_id
+    value = local.vpc_id
   }
 
   depends_on = [kubernetes_service_account.alb_controller]

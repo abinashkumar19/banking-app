@@ -114,7 +114,7 @@ ALB hostname shows up — that URL is written to the job summary.
 
 1. **Remote state** (required — GitHub Actions has no local disk between runs):
    ```bash
-   aws s3 mb s3://veerabank-terraform-state-<your-suffix> --region us-east-1
+   aws s3 mb s3://veerabank-terraform-state-517798688687 --region us-east-1
    aws dynamodb create-table \
      --table-name veerabank-terraform-locks \
      --attribute-definitions AttributeName=LockID,AttributeType=S \

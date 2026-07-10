@@ -30,6 +30,8 @@ jobs:
       ecr_repository_urls: ${{ steps.tf_out.outputs.ecr_repository_urls }}
       backend_irsa_role_arn: ${{ steps.tf_out.outputs.backend_irsa_role_arn }}
       sns_user_registered_topic_arn: ${{ steps.tf_out.outputs.sns_user_registered_topic_arn }}
+      users_db_secret_arn: ${{ steps.tf_out.outputs.users_db_secret_arn }}
+      transactions_history_api_url: ${{ steps.tf_out.outputs.transactions_history_api_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +61,8 @@ jobs:
           echo "ecr_repository_urls=$(terraform output -json ecr_repository_urls | jq -c .)" >> "$GITHUB_OUTPUT"
           echo "backend_irsa_role_arn=$(terraform output -raw backend_irsa_role_arn)" >> "$GITHUB_OUTPUT"
           echo "sns_user_registered_topic_arn=$(terraform output -raw sns_user_registered_topic_arn)" >> "$GITHUB_OUTPUT"
+          echo "users_db_secret_arn=$(terraform output -raw users_db_secret_arn)" >> "$GITHUB_OUTPUT"
+          echo "transactions_history_api_url=$(terraform output -raw transactions_history_api_url)" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------
   # 2. Build + push all 20 microservice images + frontend, deploy to EKS,
@@ -110,6 +114,8 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           ROLE_ARN: ${{ needs.terraform.outputs.backend_irsa_role_arn }}
           SNS_TOPIC_ARN: ${{ needs.terraform.outputs.sns_user_registered_topic_arn }}
+          USERS_DB_SECRET_ARN: ${{ needs.terraform.outputs.users_db_secret_arn }}
+          TRANSACTIONS_HISTORY_API_URL: ${{ needs.terraform.outputs.transactions_history_api_url }}
         run: |
           mkdir -p rendered
 
@@ -125,6 +131,8 @@ jobs:
             url=$(echo "$ECR_URLS_JSON" | jq -r --arg s "$svc" '.[$s]')
             sed "s|<ECR_REPO_URL_${env_name}>:latest|$url:$IMAGE_TAG|" "$f" \
               | sed "s|<SNS_USER_REGISTERED_TOPIC_ARN>|$SNS_TOPIC_ARN|" \
+              | sed "s|<USERS_DB_SECRET_ARN>|$USERS_DB_SECRET_ARN|" \
+              | sed "s|<TRANSACTIONS_HISTORY_API_URL>|$TRANSACTIONS_HISTORY_API_URL|" \
               > "rendered/${svc}-deployment.yaml"
           done
           cp k8s/services/*-service.yaml rendered/

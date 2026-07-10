@@ -194,7 +194,7 @@ summary.
    ```bash
    bash scripts/bootstrap-state.sh
    ```
-   This creates the S3 bucket (`veerabank-terraform-state-517798688687`,
+   This creates the S3 bucket (`veerabank-tfstate-517798688687-6b6ca11c`,
    versioned + encrypted + public access blocked) and the DynamoDB lock
    table (`veerabank-terraform-locks`) that `terraform/main.tf`'s
    `backend "s3"` block already points at. Safe to re-run.

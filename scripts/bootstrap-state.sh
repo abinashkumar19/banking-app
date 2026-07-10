@@ -9,15 +9,44 @@
 
 set -euo pipefail
 
-BUCKET="veerabank-terraform-state-517798688687"
+BUCKET="veerabank-tfstate-517798688687-6b6ca11c"
 TABLE="veerabank-terraform-locks"
 REGION="us-east-1"
 
 echo "== Creating S3 bucket: $BUCKET in $REGION =="
 if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-  echo "Bucket already exists, skipping create."
+  echo "Bucket already exists and is accessible, skipping create."
 else
-  aws s3api create-bucket --bucket "$BUCKET" --region "$REGION"
+  # head-bucket said "no" (404, or a 403 we can't distinguish from 404),
+  # but create-bucket can still fail with BucketAlreadyExists - notably
+  # us-east-1 returns that generic error even when *this* account already
+  # owns the bucket, instead of the friendlier BucketAlreadyOwnedByYou.
+  # So: attempt the create, then re-check access rather than trusting
+  # create-bucket's error message alone.
+  set +e
+  CREATE_OUTPUT=$(aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" 2>&1)
+  CREATE_STATUS=$?
+  set -e
+
+  if [ $CREATE_STATUS -eq 0 ]; then
+    echo "Bucket created."
+  elif aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+    echo "Bucket creation reported an error, but it's accessible under this account - continuing."
+  else
+    echo "$CREATE_OUTPUT" >&2
+    echo ""
+    echo "== Bucket name '$BUCKET' is not usable by this account =="
+    echo "S3 bucket names are unique across ALL of AWS, not just your account."
+    echo "This exact name is already taken by someone else (or an orphaned"
+    echo "bucket from another account). Pick a new name, e.g.:"
+    echo ""
+    echo "  BUCKET=\"veerabank-tfstate-\$(date +%s)\""
+    echo ""
+    echo "...then update both this script's BUCKET variable and the"
+    echo "backend \"s3\" { bucket = ... } block in terraform/main.tf to match,"
+    echo "and re-run this script."
+    exit 1
+  fi
 fi
 
 echo "== Enabling versioning =="

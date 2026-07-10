@@ -29,8 +29,8 @@ spec:
               value: "veerabank-dev"
             - name: USER_REGISTERED_TOPIC_ARN
               value: "<SNS_USER_REGISTERED_TOPIC_ARN>"
-            - name: DB_SECRET_ARN
-              value: "<USERS_DB_SECRET_ARN>"
+            - name: TRANSACTIONS_HISTORY_API_URL
+              value: "<TRANSACTIONS_HISTORY_API_URL>"
           resources:
             requests:
               cpu: "50m"

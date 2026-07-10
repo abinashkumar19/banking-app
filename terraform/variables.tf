@@ -70,9 +70,3 @@ variable "dynamodb_billing_mode" {
   type        = string
   default     = "PAY_PER_REQUEST"
 }
-
-variable "ecr_repo_name" {
-  description = "Name of the ECR repository for the backend image"
-  type        = string
-  default     = "veerabank-backend"
-}

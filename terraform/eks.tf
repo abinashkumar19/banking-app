@@ -150,6 +150,7 @@ module "backend_app_irsa" {
 
   role_policy_arns = {
     dynamodb = aws_iam_policy.dynamodb_app_access.arn
+    sns      = aws_iam_policy.sns_publish_user_registered.arn
   }
 
   oidc_providers = {

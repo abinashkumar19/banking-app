@@ -11,8 +11,9 @@ output "configure_kubectl" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
-output "ecr_repository_url" {
-  value = aws_ecr_repository.backend.repository_url
+output "ecr_repository_urls" {
+  description = "Map of service name -> ECR repository URL"
+  value       = { for name, repo in aws_ecr_repository.service : name => repo.repository_url }
 }
 
 output "dynamodb_accounts_table" {

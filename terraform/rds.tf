@@ -1,7 +1,10 @@
 # ---------------------------------------------------------------------------
-# RDS (Aurora MySQL Serverless v2) - system of record for user accounts.
-# Replaces the old DynamoDB "users" table: registration, login, and profile
-# data now live here so they can be queried/joined relationally.
+# RDS (Aurora MySQL Serverless v2) - relational replica of user accounts.
+# DynamoDB (see dynamodb.tf) is the source of truth for registration/login;
+# every write there is streamed by the users-db-sync Lambda (see lambda.tf)
+# into this cluster so accounts can also be queried/joined relationally.
+# Only that Lambda talks to this cluster - the users-service pod itself
+# only ever touches DynamoDB.
 # ---------------------------------------------------------------------------
 
 resource "random_password" "db_master" {
@@ -17,17 +20,32 @@ resource "aws_db_subnet_group" "users" {
   subnet_ids = local.private_subnet_ids
 }
 
+# Security group attached to the users-db-sync Lambda's ENIs (the Lambda
+# runs inside the VPC so it can reach the RDS cluster over 3306).
+resource "aws_security_group" "users_db_sync_lambda" {
+  name        = "${var.project_name}-${var.environment}-users-db-sync-lambda-sg"
+  description = "Attached to the users-db-sync Lambda (DynamoDB Streams -> RDS)"
+  vpc_id      = local.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_security_group" "users_db" {
   name        = "${var.project_name}-${var.environment}-users-db-sg"
-  description = "Allow MySQL (3306) from the EKS worker nodes to the users Aurora cluster"
+  description = "Allow MySQL (3306) from the users-db-sync Lambda to the users Aurora cluster"
   vpc_id      = local.vpc_id
 
   ingress {
-    description     = "MySQL from EKS nodes"
+    description     = "MySQL from the users-db-sync Lambda"
     from_port        = 3306
     to_port          = 3306
     protocol         = "tcp"
-    security_groups  = [module.eks.node_security_group_id]
+    security_groups  = [aws_security_group.users_db_sync_lambda.id]
   }
 
   egress {
@@ -69,15 +87,46 @@ resource "aws_rds_cluster_instance" "users" {
   engine_version       = aws_rds_cluster.users.engine_version
 }
 
-# Credentials handed to the users-service pod via Secrets Manager (never
-# baked into the image or a k8s manifest in plaintext).
-resource "aws_secretsmanager_secret" "users_db" {
-  name = "${var.project_name}-${var.environment}-users-db-credentials"
+# Credentials handed to the users-db-sync Lambda via a private S3 bucket
+# (never baked into the image or a k8s manifest in plaintext).
+resource "aws_s3_bucket" "users_db_creds" {
+  bucket = "${var.project_name}-${var.environment}-users-db-creds-${data.aws_caller_identity.current.account_id}"
 }
 
-resource "aws_secretsmanager_secret_version" "users_db" {
-  secret_id = aws_secretsmanager_secret.users_db.id
-  secret_string = jsonencode({
+resource "aws_s3_bucket_versioning" "users_db_creds" {
+  bucket = aws_s3_bucket.users_db_creds.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "users_db_creds" {
+  bucket = aws_s3_bucket.users_db_creds.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "users_db_creds" {
+  bucket                  = aws_s3_bucket.users_db_creds.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+locals {
+  users_db_creds_key = "users-db-credentials.json"
+}
+
+resource "aws_s3_object" "users_db_creds" {
+  bucket                  = aws_s3_bucket.users_db_creds.id
+  key                     = local.users_db_creds_key
+  server_side_encryption  = "AES256"
+  content_type            = "application/json"
+  content = jsonencode({
     username = aws_rds_cluster.users.master_username
     password = random_password.db_master.result
     host     = aws_rds_cluster.users.endpoint
@@ -87,17 +136,23 @@ resource "aws_secretsmanager_secret_version" "users_db" {
 }
 
 resource "aws_iam_policy" "users_db_secret_access" {
-  name        = "${var.project_name}-${var.environment}-users-db-secret-access"
-  description = "Allows the users-service pod to read its Aurora MySQL credentials"
+  name        = "${var.project_name}-${var.environment}-users-db-creds-access"
+  description = "Allows the users-db-sync Lambda to read the Aurora MySQL credentials object from S3"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "ReadUsersDbSecret"
+        Sid      = "ReadUsersDbCredsObject"
         Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = aws_secretsmanager_secret.users_db.arn
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.users_db_creds.arn}/${local.users_db_creds_key}"
+      },
+      {
+        Sid      = "ListUsersDbCredsBucket"
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation"]
+        Resource = aws_s3_bucket.users_db_creds.arn
       }
     ]
   })

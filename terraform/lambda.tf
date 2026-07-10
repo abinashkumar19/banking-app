@@ -100,6 +100,115 @@ resource "aws_lambda_permission" "transactions_history_apigw" {
 }
 
 # ---------------------------------------------------------------------------
+# Lambda: users-db-sync (DynamoDB Streams "users" -> Aurora MySQL "users")
+# ---------------------------------------------------------------------------
+
+# pymysql isn't in the Lambda python3.12 runtime, so vendor it into the
+# same directory as handler.py before zipping (flat layout = importable at
+# the zip root, which is what Lambda expects). Re-runs only when
+# requirements.txt changes.
+resource "null_resource" "users_db_sync_deps" {
+  triggers = {
+    requirements_hash = filesha256("${path.module}/../backend/lambdas/users_db_sync/requirements.txt")
+  }
+
+  provisioner "local-exec" {
+    command = "python3 -m pip install -r ${path.module}/../backend/lambdas/users_db_sync/requirements.txt -t ${path.module}/../backend/lambdas/users_db_sync --upgrade --no-cache-dir"
+  }
+}
+
+data "archive_file" "users_db_sync" {
+  type        = "zip"
+  source_dir  = "${path.module}/../backend/lambdas/users_db_sync"
+  output_path = "${path.module}/build/users_db_sync.zip"
+  excludes    = ["requirements.txt"]
+  depends_on  = [null_resource.users_db_sync_deps]
+}
+
+resource "aws_iam_role" "users_db_sync_lambda" {
+  name = "${var.project_name}-${var.environment}-users-db-sync-lambda"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+# Lets the Lambda create/attach/delete the ENIs it needs to run inside the
+# VPC (required to reach the Aurora cluster).
+resource "aws_iam_role_policy_attachment" "users_db_sync_lambda_vpc" {
+  role       = aws_iam_role.users_db_sync_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+# Lets the Lambda read its Aurora credentials from S3.
+resource "aws_iam_role_policy_attachment" "users_db_sync_lambda_db_creds" {
+  role       = aws_iam_role.users_db_sync_lambda.name
+  policy_arn = aws_iam_policy.users_db_secret_access.arn
+}
+
+resource "aws_iam_role_policy" "users_db_sync_lambda_stream" {
+  name = "dynamodb-stream-and-logs"
+  role = aws_iam_role.users_db_sync_lambda.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetRecords",
+          "dynamodb:GetShardIterator",
+          "dynamodb:DescribeStream",
+          "dynamodb:ListStreams",
+        ]
+        Resource = aws_dynamodb_table.users.stream_arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "users_db_sync" {
+  function_name    = "${var.project_name}-${var.environment}-users-db-sync"
+  role              = aws_iam_role.users_db_sync_lambda.arn
+  handler           = "handler.handler"
+  runtime           = "python3.12"
+  timeout           = 30
+  filename          = data.archive_file.users_db_sync.output_path
+  source_code_hash = data.archive_file.users_db_sync.output_base64sha256
+
+  vpc_config {
+    subnet_ids         = local.private_subnet_ids
+    security_group_ids = [aws_security_group.users_db_sync_lambda.id]
+  }
+
+  environment {
+    variables = {
+      DB_CREDS_BUCKET = aws_s3_bucket.users_db_creds.bucket
+      DB_CREDS_KEY     = aws_s3_object.users_db_creds.key
+    }
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.users_db_sync_lambda_vpc]
+}
+
+resource "aws_lambda_event_source_mapping" "users_db_sync" {
+  event_source_arn  = aws_dynamodb_table.users.stream_arn
+  function_name      = aws_lambda_function.users_db_sync.arn
+  starting_position = "LATEST"
+  batch_size         = 10
+}
+
+# ---------------------------------------------------------------------------
 # Lambda: notification-writer (SQS -> DynamoDB "notifications" table)
 # ---------------------------------------------------------------------------
 
@@ -141,6 +250,11 @@ resource "aws_iam_role_policy" "notification_writer_lambda" {
       },
       {
         Effect   = "Allow"
+        Action   = ["ses:SendEmail", "ses:SendRawEmail"]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"
       }
@@ -160,6 +274,7 @@ resource "aws_lambda_function" "notification_writer" {
   environment {
     variables = {
       NOTIFICATIONS_TABLE = aws_dynamodb_table.generic["notifications"].name
+      SES_SENDER_EMAIL     = var.ses_sender_email
     }
   }
 }

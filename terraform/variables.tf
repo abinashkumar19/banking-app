@@ -72,7 +72,13 @@ variable "dynamodb_billing_mode" {
 }
 
 variable "notification_email" {
-  description = "Real email address to subscribe to the user-registered SNS topic. Leave blank to skip creating the email subscription."
+  description = "Real email address to subscribe to the user-registered SNS topic (ops/admin alert copy). Leave blank to skip creating the email subscription."
+  type        = string
+  default     = ""
+}
+
+variable "ses_sender_email" {
+  description = "Verified SES sender address used to email each new user a personal welcome message on registration. Must be verified in SES (AWS emails a confirmation link - click it once). Leave blank to skip sending welcome emails."
   type        = string
   default     = ""
 }

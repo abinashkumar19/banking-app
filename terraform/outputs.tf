@@ -30,7 +30,7 @@ output "vpc_id" {
 }
 
 output "users_db_endpoint" {
-  description = "Aurora MySQL cluster endpoint for the users-service"
+  description = "Aurora MySQL cluster endpoint (replica of the users DynamoDB table, fed by users-db-sync)"
   value       = aws_rds_cluster.users.endpoint
 }
 
@@ -38,16 +38,22 @@ output "users_db_name" {
   value = aws_rds_cluster.users.database_name
 }
 
-output "users_db_secret_arn" {
-  description = "Secrets Manager ARN holding the users-service DB credentials"
-  value       = aws_secretsmanager_secret.users_db.arn
+output "users_db_creds_bucket" {
+  description = "S3 bucket holding the Aurora MySQL credentials object used by the users-db-sync Lambda"
+  value       = aws_s3_bucket.users_db_creds.bucket
+}
+
+output "users_db_creds_key" {
+  description = "S3 object key (inside users_db_creds_bucket) holding the DB credentials JSON"
+  value       = aws_s3_object.users_db_creds.key
 }
 
 output "transaction_history_bucket" {
-  value = aws_s3_bucket.transaction_history.bucket
+  description = "Per-user activity history bucket (folder per user_id/account_id)"
+  value       = aws_s3_bucket.transaction_history.bucket
 }
 
 output "transactions_history_api_url" {
-  description = "Base URL of the transactions-history API Gateway (Lambda-backed, reads/writes S3)"
+  description = "Base URL of the general-purpose per-user history API Gateway (Lambda-backed, reads/writes S3)"
   value       = aws_apigatewayv2_stage.transactions_history.invoke_url
 }

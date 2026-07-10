@@ -42,7 +42,10 @@ resource "aws_rds_cluster" "users" {
   cluster_identifier     = "${var.project_name}-${var.environment}-users-db"
   engine                 = "aurora-mysql"
   engine_mode            = "provisioned"
-  engine_version         = "8.0.mysql_aurora.3.07.1"
+  # No engine_version pinned on purpose: Aurora MySQL minor versions get
+  # retired periodically, and a hardcoded one (e.g. 3.07.1) will eventually
+  # 400 with "Cannot find version ... for aurora-mysql". Omitting it lets
+  # AWS pick its current default, which is always installable.
   database_name          = "veerabank_users"
   master_username         = "veerabank_admin"
   master_password         = random_password.db_master.result

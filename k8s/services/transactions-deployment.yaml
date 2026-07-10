@@ -27,6 +27,8 @@ spec:
               value: "us-east-1"
             - name: TABLE_PREFIX
               value: "veerabank-dev"
+            - name: TRANSACTIONS_HISTORY_API_URL
+              value: "<TRANSACTIONS_HISTORY_API_URL>"
           resources:
             requests:
               cpu: "50m"

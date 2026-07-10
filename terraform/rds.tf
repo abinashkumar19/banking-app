@@ -24,7 +24,7 @@ resource "aws_db_subnet_group" "users" {
 # runs inside the VPC so it can reach the RDS cluster over 3306).
 resource "aws_security_group" "users_db_sync_lambda" {
   name        = "${var.project_name}-${var.environment}-users-db-sync-lambda-sg"
-  description = "Attached to the users-db-sync Lambda (DynamoDB Streams -> RDS)"
+  description = "Attached to the users-db-sync Lambda (DynamoDB Streams to RDS)"
   vpc_id      = local.vpc_id
 
   egress {

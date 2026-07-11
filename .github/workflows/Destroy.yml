@@ -200,3 +200,4 @@ jobs:
             echo "Deleting lock table $TABLE..."
             aws dynamodb delete-table --table-name "$TABLE" || true
           fi
+

@@ -19,8 +19,21 @@ AWS banking app: Terraform-provisioned infra, **20 FastAPI microservices +
   Lambda that both writes an in-app notification *and* sends the new user a
   personal welcome email via **SES** — all configured in Terraform, not
   left as commented-out placeholders.
-- Everything else (transfers, cards, loans, payments, ...) still uses one
-  simple DynamoDB table per service.
+- **Accounts**: `accounts-service` enforces **exactly one account per
+  registered user** — it looks the user up in `users-service` (so an
+  account can never be opened for someone who hasn't registered, and
+  `owner_name` always matches their one registered name) and uses a
+  DynamoDB `TransactWriteItems` call (account item + a per-user lock
+  item) so two simultaneous "open an account" requests for the same user
+  can't both succeed.
+- **Transfers**: `transfers-service` moves real money — a transfer is a
+  single atomic transaction that debits the sender, credits the
+  recipient, and writes the ledger row, all-or-nothing, with the balance
+  check enforced inside the transaction itself (no possible overdraft
+  race). It has its own DynamoDB table with GSIs so either party can
+  pull their transfer history.
+- Everything else (cards, loans, payments, ...) still uses one simple
+  DynamoDB table per service.
 
 ```
 veerabank-eks/

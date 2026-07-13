@@ -8,6 +8,70 @@ resource "aws_dynamodb_table" "accounts" {
     type = "S"
   }
 
+  # Every account item carries a user_id; this table also holds one
+  # "lock" item per user (account_id = "LOCK#<user_id>") so account
+  # creation can atomically enforce exactly one account per user - see
+  # backend/services/accounts. The GSI is for looking accounts up by
+  # user_id; the uniqueness guarantee itself comes from the lock item's
+  # ConditionExpression, not from this (eventually-consistent) index.
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-index"
+    hash_key        = "user_id"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+}
+
+# ---------------------------------------------------------------------------
+# "transfers" table - real money movement between two accounts. Pulled out
+# of the generic id-keyed loop below because it needs GSIs so both parties
+# to a transfer can look up their transfer history (see
+# backend/services/transfers).
+# ---------------------------------------------------------------------------
+resource "aws_dynamodb_table" "transfers" {
+  name         = "${var.project_name}-${var.environment}-transfers"
+  billing_mode = var.dynamodb_billing_mode
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  attribute {
+    name = "from_account_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "to_account_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "from_account_id-index"
+    hash_key        = "from_account_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "to_account_id-index"
+    hash_key        = "to_account_id"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled = true
   }
@@ -57,7 +121,19 @@ resource "aws_dynamodb_table" "users" {
   stream_view_type = "NEW_AND_OLD_IMAGES"
 }
 
-# One id-keyed table per generic microservice (transfers, cards, loans, ...).
+# Generic services whose items belong to one user (so the frontend/backend
+# can list "my cards", "my loans", etc. via a Query instead of a table
+# Scan). audit-log, fraud-detection, admin, statements, and reports are
+# staff-facing/bank-wide views instead, so they don't get this GSI.
+locals {
+  user_indexed_generic_services = toset([
+    "cards", "loans", "payments", "beneficiaries", "kyc",
+    "fixed-deposits", "cheques", "disputes", "support-tickets",
+    "rewards", "notifications",
+  ])
+}
+
+# One id-keyed table per generic microservice (cards, loans, payments, ...).
 resource "aws_dynamodb_table" "generic" {
   for_each = toset(local.generic_services)
 
@@ -68,6 +144,23 @@ resource "aws_dynamodb_table" "generic" {
   attribute {
     name = "id"
     type = "S"
+  }
+
+  dynamic "attribute" {
+    for_each = contains(local.user_indexed_generic_services, each.value) ? [1] : []
+    content {
+      name = "user_id"
+      type = "S"
+    }
+  }
+
+  dynamic "global_secondary_index" {
+    for_each = contains(local.user_indexed_generic_services, each.value) ? [1] : []
+    content {
+      name            = "user_id-index"
+      hash_key        = "user_id"
+      projection_type = "ALL"
+    }
   }
 
   point_in_time_recovery {
@@ -97,7 +190,10 @@ resource "aws_iam_policy" "dynamodb_app_access" {
           "dynamodb:Query",
           "dynamodb:Scan",
           "dynamodb:BatchGetItem",
-          "dynamodb:BatchWriteItem"
+          "dynamodb:BatchWriteItem",
+          "dynamodb:ConditionCheckItem",
+          "dynamodb:TransactGetItems",
+          "dynamodb:TransactWriteItems"
         ]
         Resource = concat(
           [
@@ -105,6 +201,8 @@ resource "aws_iam_policy" "dynamodb_app_access" {
             "${aws_dynamodb_table.accounts.arn}/index/*",
             aws_dynamodb_table.users.arn,
             "${aws_dynamodb_table.users.arn}/index/*",
+            aws_dynamodb_table.transfers.arn,
+            "${aws_dynamodb_table.transfers.arn}/index/*",
           ],
           [for t in aws_dynamodb_table.generic : t.arn],
           [for t in aws_dynamodb_table.generic : "${t.arn}/index/*"],

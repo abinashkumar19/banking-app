@@ -1,30 +1,27 @@
 function renderGate() {
   document.getElementById("app").innerHTML = `
     <div class="gate">
-      <div class="gate-card fade-in">
-        <div class="gate-visual">
-          <div class="brand">
-            <div class="mark">V</div>
-            <div class="word" style="color:#eef1f8">Veera<b>Bank</b></div>
-          </div>
-          <div>
-            <div class="quote">Every balance is <span>a ledger</span>, every transfer <span>a promise kept</span>.</div>
-            <div class="foot" style="margin-top:22px;">SECURE · CLOUD-NATIVE · 20 SERVICES ON EKS</div>
-          </div>
+      <div class="gate-orbit o1" style="color:var(--violet)"><div class="dot" style="background:var(--violet)"></div></div>
+      <div class="gate-orbit o2" style="color:var(--ledger)"><div class="dot" style="background:var(--ledger)"></div></div>
+      <div class="gate-card">
+        <div class="gate-badge">V</div>
+        <div class="gate-heading">
+          <h1>Veera<span style="background:linear-gradient(90deg, var(--violet), var(--ledger)); -webkit-background-clip:text; background-clip:text; color:transparent;">Bank</span></h1>
+          <p>${authTab === 'login' ? 'Sign in to your account' : 'Open a VeeraBank account'}</p>
         </div>
-        <div class="gate-form">
-          <div class="eyebrow">Welcome back</div>
-          <div class="pagetitle" style="font-size:24px;">Sign in to VeeraBank</div>
-          <div class="tabs">
-            <button class="${authTab==='login'?'active':''}" onclick="setAuthTab('login')">Login</button>
-            <button class="${authTab==='register'?'active':''}" onclick="setAuthTab('register')">Register</button>
-          </div>
-          <div id="auth-body"></div>
+        <div class="gate-chips">
+          <span>Cloud-native</span><span>20 services</span><span>EKS-secured</span>
         </div>
+        <div class="tabs">
+          <button class="${authTab==='login'?'active':''}" onclick="setAuthTab('login')">Login</button>
+          <button class="${authTab==='register'?'active':''}" onclick="setAuthTab('register')">Register</button>
+        </div>
+        <div class="gate-form" id="auth-body"></div>
       </div>
     </div>
   `;
   renderAuthBody();
+  if (hasGsap()) gsap.fromTo(".gate-card", { opacity: 0, y: 26, scale: .97 }, { opacity: 1, y: 0, scale: 1, duration: .6, ease: "power3.out" });
 }
 function setAuthTab(t){ authTab = t; renderGate(); }
 

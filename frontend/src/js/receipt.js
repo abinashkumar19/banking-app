@@ -37,6 +37,7 @@ function openReceipt(txn) {
     </div>
   `;
   document.body.appendChild(wrap);
+  playModalIn("#receipt-backdrop");
 }
 function closeReceipt() {
   const el = document.getElementById("receipt-backdrop");

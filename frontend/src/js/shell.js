@@ -1,25 +1,41 @@
 const ICONS = {
-  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>',
-  accounts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="6" width="19" height="13" rx="2"/><path d="M2.5 10h19"/><path d="M6 15h4"/></svg>',
-  transactions:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg>',
-  transfers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M17 7l4 4-4 4M21 11H3M7 3l-4 4 4 4M3 7h18"/></svg>',
-  services:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
+  dashboard:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/></svg>',
+  accounts:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M2.5 10h19"/><path d="M6 15h4"/></svg>',
+  transactions:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg>',
+  transfers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 7l4 4-4 4M21 11H3M7 3l-4 4 4 4M3 7h18"/></svg>',
+  services:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>',
 };
 function iconFor(key){ return ICONS[key] || ICONS.services; }
 
+/* -------- Per-page accent theming: every page/service gets its own hue,
+   so no two sections of the app share exactly the same accent color. -------- */
+const ACCENT_PALETTE = ["#8b7cff","#2fe6c0","#ffb648","#ff5c72","#5ec8ff","#ff7fd8","#b3ff5c","#ff9d52","#7c93ff","#4be8e0","#e05cff","#ffd15c"];
+const PAGE_ORDER = ["dashboard","accounts","transfers","transactions","services", ...GENERIC_SERVICES];
+function accentFor(tab){
+  const i = PAGE_ORDER.indexOf(tab);
+  return ACCENT_PALETTE[(i < 0 ? 0 : i) % ACCENT_PALETTE.length];
+}
+function hexToRgba(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n>>16)&255}, ${(n>>8)&255}, ${n&255}, ${a})`;
+}
+function applyAccent(tab){
+  const hex = accentFor(tab);
+  document.documentElement.style.setProperty("--accent", hex);
+  document.documentElement.style.setProperty("--accent-dim", hexToRgba(hex, .16));
+}
+
 function renderShell() {
+  applyAccent(currentTab);
   document.getElementById("app").innerHTML = `
     <div class="shell">
-      <aside class="sidebar">
+      <div class="topnav">
         <div class="brand">
           <div class="mark">V</div>
           <div class="word">Veera<b>Bank</b></div>
         </div>
-        <nav class="navgroup" id="nav-primary">
-          <div class="label">Overview</div>
-        </nav>
-        <nav class="navgroup" id="nav-secondary"></nav>
-        <div class="sidebar-foot">
+        <nav class="navpills" id="nav-primary"></nav>
+        <div class="who-wrap">
           <div class="who">
             <div class="avatar">${initials(currentUser.full_name)}</div>
             <div class="meta">
@@ -27,18 +43,20 @@ function renderShell() {
               <div class="sub">${currentUser.email}</div>
             </div>
           </div>
-          <button class="signout" onclick="doLogout()">Sign out →</button>
+          <button class="signout" onclick="doLogout()">Sign out</button>
         </div>
-      </aside>
+      </div>
+      <nav class="svcnav" id="nav-services"></nav>
       <main id="main"></main>
     </div>
   `;
   renderNav();
+  playNavEnter();
 }
 
 function renderNav() {
   const primary = document.getElementById("nav-primary");
-  const secondary = document.getElementById("nav-secondary");
+  const secondary = document.getElementById("nav-services");
   const mk = (key, label, icon) => {
     const b = document.createElement("button");
     b.className = "navitem" + (key === currentTab ? " active" : "");
@@ -46,17 +64,19 @@ function renderNav() {
     b.onclick = () => { currentTab = key; render(); };
     return b;
   };
-  primary.innerHTML = `<div class="label">Overview</div>`;
-  [["dashboard","Dashboard",iconFor("dashboard")], ["accounts","Accounts",iconFor("accounts")],
-   ["transfers","Transfers",iconFor("transfers")],
-   ["transactions","Transactions",iconFor("transactions")]].forEach(([k,l,i]) => primary.appendChild(mk(k,l,i)));
+  primary.innerHTML = "";
+  [["dashboard","Dashboard",iconFor("dashboard")], ["accounts","Account",iconFor("accounts")],
+   ["transfers","Transfers",iconFor("transfers")], ["transactions","Transactions",iconFor("transactions")],
+   ["services","Services",iconFor("services")]].forEach(([k,l,i]) => primary.appendChild(mk(k,l,i)));
 
-  secondary.innerHTML = `<div class="label">Services</div>`;
-  const b = document.createElement("button");
-  b.className = "navitem" + (currentTab === "services" ? " active" : "");
-  b.innerHTML = `${iconFor("services")}<span>All services (${GENERIC_SERVICES.length})</span>`;
-  b.onclick = () => { currentTab = "services"; render(); };
-  secondary.appendChild(b);
+  secondary.innerHTML = "";
+  GENERIC_SERVICES.forEach(s => {
+    const b = document.createElement("button");
+    b.className = "navitem" + (s === currentTab ? " active" : "");
+    b.innerHTML = `<span>${SERVICE_ICONS[s] || "◆"}</span><span style="text-transform:capitalize">${s.replace("-"," ")}</span>`;
+    b.onclick = () => { currentTab = s; render(); };
+    secondary.appendChild(b);
+  });
 }
 
 function pageHeader(eyebrow, title) {
@@ -81,10 +101,6 @@ setInterval(tickClock, 1000);
 async function render() {
   if (!currentUser) { renderGate(); return; }
   renderShell();
-  // Every tab/service renders inside #main wearing its own theme class —
-  // this is the single hook that gives each "server" page its completely
-  // separate look (colors, type, shapes) without touching page logic.
-  document.getElementById("main").className = "themed theme-" + currentTab;
   if (currentTab === "dashboard") await renderDashboard();
   else if (currentTab === "accounts") await renderAccounts();
   else if (currentTab === "transfers") await renderTransfers();
@@ -92,42 +108,5 @@ async function render() {
   else if (currentTab === "services") renderServices();
   else if (SERVICE_PAGES[currentTab]) await SERVICE_PAGES[currentTab]();
   tickClock();
-}
-
-/* ---------------------------------------------------------------------- */
-/* Full-screen "View" overlay — lets someone preview a service's theme and
-   live headline stat at big-screen size before committing to open it. */
-async function openBigView(key) {
-  const label = (key || "").replace(/-/g, " ");
-  const wrap = document.createElement("div");
-  wrap.className = "bigview-backdrop theme-" + key;
-  wrap.id = "bigview-backdrop";
-  wrap.onclick = (e) => { if (e.target === wrap) closeBigView(); };
-  wrap.innerHTML = `
-    <div class="bigview fade-in">
-      <button class="bigview-close" onclick="closeBigView()">✕</button>
-      <div class="bigview-eyebrow">${iconFor("services")} VeeraBank · microservice preview</div>
-      <div class="bigview-title">${label}</div>
-      <div class="bigview-icon">${SERVICE_ICONS[key] || "◆"}</div>
-      <div class="bigview-stat" id="bigview-stat">Loading preview…</div>
-      <p class="bigview-desc">${SERVICE_BLURBS[key] || "Open this service to see live data."}</p>
-      <button class="btn bigview-open" onclick="closeBigView(); currentTab='${key}'; render();">Open ${label} →</button>
-    </div>
-  `;
-  document.body.appendChild(wrap);
-  document.addEventListener("keydown", bigViewEsc);
-  try {
-    const stat = await SERVICE_PREVIEW[key]?.();
-    const el = document.getElementById("bigview-stat");
-    if (el) el.textContent = stat || "Ready.";
-  } catch (e) {
-    const el = document.getElementById("bigview-stat");
-    if (el) el.textContent = "Sign in required to preview live data.";
-  }
-}
-function bigViewEsc(e){ if (e.key === "Escape") closeBigView(); }
-function closeBigView() {
-  const el = document.getElementById("bigview-backdrop");
-  if (el) el.remove();
-  document.removeEventListener("keydown", bigViewEsc);
+  playPageEnter();
 }

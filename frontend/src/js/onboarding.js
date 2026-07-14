@@ -35,6 +35,7 @@ function openOnboarding() {
     </div>
   `;
   document.body.appendChild(wrap);
+  playModalIn("#onboard-backdrop");
 }
 function pickOnboardType(t) {
   onboardType = t;

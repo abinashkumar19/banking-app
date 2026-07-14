@@ -6,47 +6,33 @@
 <title>VeeraBank</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Playfair+Display:wght@500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Quicksand:wght@500;600;700&family=Baloo+2:wght@500;600;700&family=Cormorant+Garamond:wght@500;600;700&family=Chakra+Petch:wght@400;500;600&family=DM+Serif+Display&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- Core shell + shared primitives -->
 <link rel="stylesheet" href="/css/base.css">
 <link rel="stylesheet" href="/css/dashboard.css">
 <link rel="stylesheet" href="/css/cards.css">
 <link rel="stylesheet" href="/css/services.css">
 <link rel="stylesheet" href="/css/print.css">
-
-<!-- One completely distinct visual theme per microservice -->
-<link rel="stylesheet" href="/css/themes/theme-dashboard.css">
-<link rel="stylesheet" href="/css/themes/theme-accounts.css">
-<link rel="stylesheet" href="/css/themes/theme-transfers.css">
-<link rel="stylesheet" href="/css/themes/theme-transactions.css">
-<link rel="stylesheet" href="/css/themes/theme-cards.css">
-<link rel="stylesheet" href="/css/themes/theme-loans.css">
-<link rel="stylesheet" href="/css/themes/theme-payments.css">
-<link rel="stylesheet" href="/css/themes/theme-beneficiaries.css">
-<link rel="stylesheet" href="/css/themes/theme-statements.css">
-<link rel="stylesheet" href="/css/themes/theme-notifications.css">
-<link rel="stylesheet" href="/css/themes/theme-kyc.css">
-<link rel="stylesheet" href="/css/themes/theme-fixed-deposits.css">
-<link rel="stylesheet" href="/css/themes/theme-cheques.css">
-<link rel="stylesheet" href="/css/themes/theme-disputes.css">
-<link rel="stylesheet" href="/css/themes/theme-audit-log.css">
-<link rel="stylesheet" href="/css/themes/theme-fraud-detection.css">
-<link rel="stylesheet" href="/css/themes/theme-support-tickets.css">
-<link rel="stylesheet" href="/css/themes/theme-rewards.css">
-<link rel="stylesheet" href="/css/themes/theme-admin.css">
-<link rel="stylesheet" href="/css/themes/theme-reports.css">
-<link rel="stylesheet" href="/css/themes/theme-services.css">
 </head>
 <body>
+
+<div class="aurora-bg" aria-hidden="true">
+  <div class="aurora a1"></div>
+  <div class="aurora a2"></div>
+  <div class="aurora a3"></div>
+  <div class="grain"></div>
+</div>
 
 <div id="app"></div>
 <div class="toast-wrap" id="toasts"></div>
 
+<!-- GSAP powers every transition/reveal in this UI -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <!-- Used only for the "download receipt" PDF button in js/receipt.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 
 <script src="/js/api.js"></script>
+<script src="/js/motion.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/onboarding.js"></script>
 <script src="/js/receipt.js"></script>
@@ -56,25 +42,7 @@
 <script src="/js/transactions.js"></script>
 <script src="/js/transfers.js"></script>
 <script src="/js/cards.js"></script>
-
-<!-- Every microservice page now lives in its own file -->
-<script src="/js/services/loans.js"></script>
-<script src="/js/services/payments.js"></script>
-<script src="/js/services/beneficiaries.js"></script>
-<script src="/js/services/statements.js"></script>
-<script src="/js/services/notifications.js"></script>
-<script src="/js/services/kyc.js"></script>
-<script src="/js/services/fixed-deposits.js"></script>
-<script src="/js/services/cheques.js"></script>
-<script src="/js/services/disputes.js"></script>
-<script src="/js/services/audit-log.js"></script>
-<script src="/js/services/fraud-detection.js"></script>
-<script src="/js/services/support-tickets.js"></script>
-<script src="/js/services/rewards.js"></script>
-<script src="/js/services/admin.js"></script>
-<script src="/js/services/reports.js"></script>
-<script src="/js/services/hub.js"></script>
-
+<script src="/js/services.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

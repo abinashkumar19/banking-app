@@ -103,13 +103,4 @@ function copyIdentity(which) {
   toast((which === 'acct' ? "Account number" : "Email") + " copied.");
 }
 
-function animateCount(el, target) {
-  const start = 0, dur = 700, t0 = performance.now();
-  function step(t) {
-    const p = Math.min(1, (t - t0) / dur);
-    const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = fmtMoney(start + (target - start) * eased);
-    if (p < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
-}
+

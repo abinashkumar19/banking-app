@@ -9,6 +9,7 @@
   font-size:19px; color:#050308; background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, white 15%));
   margin-bottom:6px;
 }
+.svc-tile .icon svg{width:22px; height:22px; flex:none;}
 .svc-tile h2{text-transform:capitalize; margin-top:6px;}
 .svc-tile p{margin:0;}
 

@@ -34,6 +34,7 @@ async function renderTransfers() {
         <div id="tr_review"></div>
         <label>Amount</label><input id="tr_amount" type="number" min="0.01" step="0.01" placeholder="0.00" ${mine ? "" : "disabled"} />
         <label>Note (optional)</label><input id="tr_note" placeholder="What's this for?" ${mine ? "" : "disabled"} />
+        <p class="hint">Sending as <strong>${currentUser.full_name}</strong> · ${currentUser.email} — the recipient sees this with every transfer.</p>
         <button class="btn" onclick="doTransfer()" ${mine ? "" : "disabled"}>Review & send</button>
         <div id="tr_msg"></div>
       </div>
@@ -83,7 +84,11 @@ async function doTransfer() {
     const amount = Number(document.getElementById("tr_amount").value);
     if (!amount || amount <= 0) throw new Error("Enter an amount.");
     const note = document.getElementById("tr_note").value;
-    const body = { from_account_id: mine.account_id, to_account_id: resolvedRecipient.account_id, amount, user_id: currentUser.user_id, note };
+    const body = {
+      from_account_id: mine.account_id, to_account_id: resolvedRecipient.account_id, amount,
+      user_id: currentUser.user_id, note,
+      sender_name: currentUser.full_name, sender_email: currentUser.email,
+    };
     await api("/transfers", { method: "POST", body: JSON.stringify(body) });
     el.innerHTML = `<div class="msg ok">Sent $${fmtMoney(amount)} to ${resolvedRecipient.owner_name}.</div>`;
     toast(`Transfer to ${resolvedRecipient.owner_name} complete.`);
@@ -110,10 +115,11 @@ async function loadTransferHistory() {
     const rows = await api(`/transfers/account/${mine.account_id}`);
     box.innerHTML = rows.length ? rows.map(t => {
       const out = t.from_account_id === mine.account_id;
+      const fromWhom = !out && t.sender_name ? ` · from ${t.sender_name}${t.sender_email ? ` (${t.sender_email})` : ""}` : "";
       return `
         <div class="split" style="justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line);">
           <div>
-            <div style="font-size:13px; font-weight:600;">${out ? "Sent" : "Received"}${t.note ? " · " + t.note : ""}</div>
+            <div style="font-size:13px; font-weight:600;">${out ? "Sent" : "Received"}${t.note ? " · " + t.note : ""}${fromWhom}</div>
             <div class="when">${fmtWhen(t.created_at)}</div>
           </div>
           <div class="amt ${out ? 'neg' : 'pos'}" style="font-family:var(--mono);">${out ? '−' : '+'}$${fmtMoney(t.amount)}</div>

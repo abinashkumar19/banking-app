@@ -13,13 +13,13 @@ const SERVICE_GROUPS = {
 };
 function renderServices() {
   const main = document.getElementById("main");
-  main.innerHTML = pageHeader("Services", "Every VeeraBank feature") +
+  main.innerHTML = pageHeader("Services", "Every Cloud Bank feature") +
     Object.entries(SERVICE_GROUPS).map(([group, list]) => `
       <div class="section-title" style="margin-top:28px;">${group}</div>
       <div class="grid cols-3">
         ${list.map(s => `
           <button class="card fade-in svc-tile" onclick="currentTab='${s}'; render();">
-            <div class="icon">${SERVICE_ICONS[s] || "◆"}</div>
+            <div class="icon">${SERVICE_ICONS[s] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 9-9 9-9-9 9-9Z"/></svg>'}</div>
             <h2>${s.replace('-',' ')}</h2>
             <p class="hint">Open ${s.replace('-',' ')}</p>
           </button>

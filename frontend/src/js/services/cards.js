@@ -76,7 +76,7 @@ function cardFacesHtml(c, idPrefix) {
           <div class="vcard-cvv-panel">${cvv}</div>
         </div>
       </div>
-      <div class="vcard-back-note">This card is issued by VeeraBank and is property of the account holder above. Tap the front to flip back. For lost/stolen cards, freeze it instantly from the app.</div>
+      <div class="vcard-back-note">This card is issued by Cloud Bank and is property of the account holder above. Tap the front to flip back. For lost/stolen cards, freeze it instantly from the app.</div>
       <div class="vcard-bottom" style="margin-top:14px;">
         <div class="vcard-holder"><div>Card number</div><div class="name" style="font-family:var(--mono); letter-spacing:1px;">${number}</div></div>
         <div class="vcard-network">VB</div>

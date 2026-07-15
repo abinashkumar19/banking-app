@@ -31,13 +31,13 @@ function renderShell() {
     <div class="shell">
       <div class="topnav">
         <div class="brand">
-          <div class="mark">V</div>
-          <div class="word">Veera<b>Bank</b></div>
+          <div class="mark">C</div>
+          <div class="word">Cloud<b>Bank</b></div>
         </div>
         <nav class="navpills" id="nav-primary"></nav>
         <div class="who-wrap">
-          <div class="who">
-            <div class="avatar">${initials(currentUser.full_name)}</div>
+          <div class="who" onclick="openProfile()" title="Edit profile">
+            <div class="avatar">${currentUser.profile_photo ? `<img src="${currentUser.profile_photo}" alt="" />` : initials(currentUser.full_name)}</div>
             <div class="meta">
               <div class="name">${currentUser.full_name}</div>
               <div class="sub">${currentUser.email}</div>
@@ -73,7 +73,7 @@ function renderNav() {
   GENERIC_SERVICES.forEach(s => {
     const b = document.createElement("button");
     b.className = "navitem" + (s === currentTab ? " active" : "");
-    b.innerHTML = `<span>${SERVICE_ICONS[s] || "◆"}</span><span style="text-transform:capitalize">${s.replace("-"," ")}</span>`;
+    b.innerHTML = `<span>${SERVICE_ICONS[s] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l9 9-9 9-9-9 9-9Z"/></svg>'}</span><span style="text-transform:capitalize">${s.replace("-"," ")}</span>`;
     b.onclick = () => { currentTab = s; render(); };
     secondary.appendChild(b);
   });

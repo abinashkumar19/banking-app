@@ -8,7 +8,7 @@ async function renderCheques() {
   main.innerHTML = pageHeader("Cheques", "Issue & clear") + (mine ? `
     <div class="card fade-in">
       <h2>Issue a cheque</h2>
-      <p class="hint">Funds only leave your account once it's cleared. The payee must be a real VeeraBank account.</p>
+      <p class="hint">Funds only leave your account once it's cleared. The payee must be a real Cloud Bank account.</p>
       <div class="grid cols-2" style="gap:12px;">
         <div><label>Payee name</label><input id="ch_payee" placeholder="Payee name" /></div>
         <div><label>Amount</label><input id="ch_amount" type="number" min="0.01" step="0.01" placeholder="0.00" /></div>
@@ -46,7 +46,7 @@ async function loadCheques() {
     const items = await api(`/cheques/user/${currentUser.user_id}`);
     box.innerHTML = items.length ? items.map(c => `
       <div class="cheque-leaf fade-in">
-        <div class="cheque-top"><span>VeeraBank · Pay to the order of</span><span>№ ${c.cheque_number}</span></div>
+        <div class="cheque-top"><span>Cloud Bank · Pay to the order of</span><span>№ ${c.cheque_number}</span></div>
         <div class="cheque-pay-row"><span class="payee">${c.payee_name} <span class="badge">to account</span></span><span class="amt">$${fmtMoney(c.amount)}</span></div>
         <div class="cheque-bottom">
           <span class="cheque-number">Issued ${fmtWhen(c.created_at)}</span>

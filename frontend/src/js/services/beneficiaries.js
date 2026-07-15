@@ -4,7 +4,7 @@ async function renderBeneficiaries() {
   main.innerHTML = pageHeader("Beneficiaries", "Saved payees") + `
     <div class="card fade-in">
       <h2>Add a beneficiary</h2>
-      <p class="hint">Verified against a real VeeraBank account number.</p>
+      <p class="hint">Verified against a real Cloud Bank account number.</p>
       <div class="grid cols-2" style="gap:12px;">
         <div><label>Account number</label><input id="bn_number" placeholder="e.g. 48219047335" /></div>
         <div><label>Nickname (optional)</label><input id="bn_nickname" placeholder="Mom, Landlord, ..." /></div>

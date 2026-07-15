@@ -1,5 +1,5 @@
 /* ---------------- Accounts ----------------
-   VeeraBank is one person, one name, one account: this page either shows
+   Cloud Bank is one person, one name, one account: this page either shows
    the account you already have, or - if you don't have one yet - a form
    to open your only account. owner_name is never typed in; the account
    service fetches it straight from your registered user record. */
@@ -10,7 +10,7 @@ async function renderAccounts() {
       <div class="card fade-in" id="a_panel"><div class="empty">Loading…</div></div>
       <div class="card fade-in">
         <h2>How it works</h2>
-        <p class="hint">Every VeeraBank customer gets exactly one account, opened under the one name they registered with. Money only ever moves between accounts through a real transfer — see the Transfers page.</p>
+        <p class="hint">Every Cloud Bank customer gets exactly one account, opened under the one name they registered with. Money only ever moves between accounts through a real transfer — see the Transfers page.</p>
       </div>
     </div>
   `;

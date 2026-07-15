@@ -11,11 +11,12 @@ import hashlib
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 import requests
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, FastAPI, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -67,6 +68,14 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     phone: str
     password: str
+
+
+class UpdateProfileRequest(BaseModel):
+    """Profile self-service is deliberately narrow: a person can change how
+    they're displayed (name, photo) but not their email/phone/password
+    through this endpoint - those go through their own dedicated flows."""
+    full_name: Optional[str] = None
+    profile_photo: Optional[str] = Field(None, description="Data URL (base64) of the avatar image")
 
 
 @app.get("/healthz")
@@ -126,7 +135,7 @@ def register(req: RegisterRequest):
         },
     )
 
-    return {"user_id": user_id, "email": req.email, "full_name": req.full_name}
+    return {"user_id": user_id, "email": req.email, "full_name": req.full_name, "profile_photo": None}
 
 
 class LoginRequest(BaseModel):
@@ -139,7 +148,12 @@ def login(req: LoginRequest):
     user = _get_by_email(req.email)
     if not user or user["password_hash"] != _hash_password(req.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return {"user_id": user["user_id"], "email": user["email"], "full_name": user["full_name"]}
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "full_name": user["full_name"],
+        "profile_photo": user.get("profile_photo"),
+    }
 
 
 @router.get("/{user_id}")
@@ -148,7 +162,47 @@ def get_user(user_id: str):
     user = resp.get("Item")
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"user_id": user["user_id"], "email": user["email"], "full_name": user["full_name"]}
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "full_name": user["full_name"],
+        "profile_photo": user.get("profile_photo"),
+    }
+
+
+@router.patch("/{user_id}")
+def update_profile(user_id: str, req: UpdateProfileRequest):
+    """Self-service profile update - name and/or profile photo only."""
+    resp = users_table.get_item(Key={"user_id": user_id})
+    user = resp.get("Item")
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    updates = {}
+    if req.full_name is not None and req.full_name.strip():
+        updates["full_name"] = req.full_name.strip()
+    if req.profile_photo is not None:
+        updates["profile_photo"] = req.profile_photo
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    expr_names = {f"#{k}": k for k in updates}
+    expr_values = {f":{k}": v for k, v in updates.items()}
+    users_table.update_item(
+        Key={"user_id": user_id},
+        UpdateExpression="SET " + ", ".join(f"#{k} = :{k}" for k in updates),
+        ExpressionAttributeNames=expr_names,
+        ExpressionAttributeValues=expr_values,
+    )
+
+    user.update(updates)
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "full_name": user["full_name"],
+        "profile_photo": user.get("profile_photo"),
+    }
 
 
 app.include_router(router)

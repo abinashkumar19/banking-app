@@ -53,6 +53,8 @@ class TransferRequest(BaseModel):
     amount: Decimal
     user_id: str = Field(..., description="user_id of the person initiating the transfer - must own from_account_id")
     note: Optional[str] = None
+    sender_name: Optional[str] = Field(None, description="Display name of the sender, sent by the client alongside the transfer")
+    sender_email: Optional[str] = Field(None, description="Email of the sender, sent by the client alongside the transfer")
 
     @field_validator("amount")
     @classmethod
@@ -70,6 +72,8 @@ class Transfer(BaseModel):
     to_user_id: str
     amount: Decimal
     note: Optional[str] = None
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
     status: str
     created_at: str
 
@@ -129,6 +133,8 @@ def create_transfer(req: TransferRequest):
         "to_user_id": to_acct["user_id"],
         "amount": req.amount,
         "note": req.note or "",
+        "sender_name": req.sender_name or "",
+        "sender_email": req.sender_email or "",
         "status": "completed",
         "created_at": now,
     }
@@ -192,7 +198,13 @@ def create_transfer(req: TransferRequest):
     _write_history_event(
         to_acct["user_id"],
         "transfer_in",
-        {"transfer_id": transfer_id, "from_account_id": req.from_account_id, "amount": str(req.amount)},
+        {
+            "transfer_id": transfer_id,
+            "from_account_id": req.from_account_id,
+            "amount": str(req.amount),
+            "sender_name": req.sender_name or "",
+            "sender_email": req.sender_email or "",
+        },
     )
     write_audit_log(
         from_acct["user_id"],

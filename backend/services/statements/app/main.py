@@ -39,10 +39,14 @@ def statement(
     for t in received:
         lines.append({"date": t["created_at"], "description": f"Transfer in{(' - ' + t['note']) if t.get('note') else ''}", "amount": Decimal(t["amount"]), "transfer_id": t["id"]})
 
+    # A plain "YYYY-MM-DD" date filters by day; anything longer (e.g. a
+    # full ISO timestamp from a "last N minutes" quick-period button) is
+    # compared against the full created_at timestamp instead, so short
+    # windows like "last 5 minutes" actually narrow results down.
     if from_date:
-        lines = [l for l in lines if l["date"][:10] >= from_date]
+        lines = [l for l in lines if (l["date"][:10] if len(from_date) <= 10 else l["date"]) >= from_date]
     if to_date:
-        lines = [l for l in lines if l["date"][:10] <= to_date]
+        lines = [l for l in lines if (l["date"][:10] if len(to_date) <= 10 else l["date"]) <= to_date]
 
     lines.sort(key=lambda l: l["date"])
     total_in = sum((l["amount"] for l in lines if l["amount"] > 0), Decimal(0))

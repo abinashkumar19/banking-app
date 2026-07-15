@@ -31,8 +31,8 @@ function renderShell() {
     <div class="shell">
       <div class="topnav">
         <div class="brand">
-          <div class="mark">C</div>
-          <div class="word">Cloud<b>Bank</b></div>
+          <div class="mark">V</div>
+          <div class="word">Veera<b>Bank</b></div>
         </div>
         <nav class="navpills" id="nav-primary"></nav>
         <div class="who-wrap">

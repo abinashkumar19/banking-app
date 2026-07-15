@@ -4,10 +4,10 @@ function renderGate() {
       <div class="gate-orbit o1" style="color:var(--violet)"><div class="dot" style="background:var(--violet)"></div></div>
       <div class="gate-orbit o2" style="color:var(--ledger)"><div class="dot" style="background:var(--ledger)"></div></div>
       <div class="gate-card">
-        <div class="gate-badge">C</div>
+        <div class="gate-badge">V</div>
         <div class="gate-heading">
-          <h1>Cloud<span style="background:linear-gradient(90deg, var(--violet), var(--ledger)); -webkit-background-clip:text; background-clip:text; color:transparent;">Bank</span></h1>
-          <p>${authTab === 'login' ? 'Sign in to your account' : 'Open a Cloud Bank account'}</p>
+          <h1>Veera<span style="background:linear-gradient(90deg, var(--violet), var(--ledger)); -webkit-background-clip:text; background-clip:text; color:transparent;">Bank</span></h1>
+          <p>${authTab === 'login' ? 'Sign in to your account' : 'Open a VeeraBank account'}</p>
         </div>
         <div class="gate-chips">
           <span>Cloud-native</span><span>20 services</span><span>EKS-secured</span>
@@ -29,7 +29,7 @@ function renderAuthBody() {
   const el = document.getElementById("auth-body");
   if (authTab === "login") {
     el.innerHTML = `
-      <label>Email</label><input id="l_email" type="email" placeholder="you@cloudbank.com" />
+      <label>Email</label><input id="l_email" type="email" placeholder="you@veerabank.com" />
       <label>Password</label><input id="l_password" type="password" placeholder="••••••••" />
       <button class="btn" style="width:100%" onclick="doLogin()">Sign in</button>
       <div id="l_msg"></div>
@@ -37,7 +37,7 @@ function renderAuthBody() {
   } else {
     el.innerHTML = `
       <label>Full name</label><input id="r_name" placeholder="Ada Lovelace" />
-      <label>Email</label><input id="r_email" type="email" placeholder="you@cloudbank.com" />
+      <label>Email</label><input id="r_email" type="email" placeholder="you@veerabank.com" />
       <label>Phone</label><input id="r_phone" placeholder="+1 555 000 1234" />
       <label>Password</label><input id="r_password" type="password" placeholder="Create a password" />
       <button class="btn gold" style="width:100%" onclick="doRegister()">Create account</button>
@@ -57,7 +57,7 @@ async function doRegister() {
     };
     const user = await api("/users/register", { method: "POST", body: JSON.stringify(body) });
     setUser(user);
-    toast("Account created — welcome to Cloud Bank.");
+    toast("Account created — welcome to VeeraBank.");
     currentTab = "dashboard";
     afterAuth();
   } catch (e) { el.innerHTML = `<div class="msg err">${e.message}</div>`; }

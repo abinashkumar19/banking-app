@@ -8,9 +8,9 @@ function openOnboarding() {
   wrap.innerHTML = `
     <div class="modal fade-in">
       <div class="onboard-hero">
-        <div class="mark">C</div>
+        <div class="mark">V</div>
         <h2>Welcome, ${(currentUser.full_name||"there").split(" ")[0]}.</h2>
-        <p>Let's open your Cloud Bank account. Choose a type and how much you'd like to start with — it's credited the instant your account opens.</p>
+        <p>Let's open your VeeraBank account. Choose a type and how much you'd like to start with — it's credited the instant your account opens.</p>
       </div>
 
       <label>Account type</label>
@@ -30,7 +30,7 @@ function openOnboarding() {
       </div>
 
       <button class="btn" style="width:100%" onclick="doOnboardCreateAccount()">Open my account</button>
-      <p class="hint" style="text-align:center; margin-top:10px;">You'll need an account to use Cloud Bank — this step can't be skipped.</p>
+      <button class="btn ghost" style="width:100%" onclick="closeOnboarding()">I'll do this later</button>
       <div id="ob-msg"></div>
     </div>
   `;
@@ -64,7 +64,7 @@ async function doOnboardCreateAccount() {
       opening_balance: onboardAmount,
     };
     await api("/accounts", { method: "POST", body: JSON.stringify(body) });
-    toast("Account opened — welcome to Cloud Bank.");
+    toast("Account opened — welcome to VeeraBank.");
     closeOnboarding();
     currentTab = "dashboard";
     render();

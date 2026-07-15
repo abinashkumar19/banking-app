@@ -83,7 +83,7 @@ function badge(text, tone) {
   return `<span class="badge" style="border-color:${colors[tone]||'var(--line)'}; color:${colors[tone]||'var(--text)'}">${(tone||'').replace('_',' ')}</span>`;
 }
 function noAccountCard(serviceLabel) {
-  return `<div class="card fade-in"><div class="empty"><div class="big">No account yet</div>Open your Cloud Bank account first to use ${serviceLabel}.</div></div>`;
+  return `<div class="card fade-in"><div class="empty"><div class="big">No account yet</div>Open your VeeraBank account first to use ${serviceLabel}.</div></div>`;
 }
 function renderLedgerTable(rows, showOwner, clickable) {
   if (!rows.length) return `<div class="empty"><div class="big">Nothing here yet</div>Transactions will appear as soon as they post.</div>`;

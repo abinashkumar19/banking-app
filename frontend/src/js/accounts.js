@@ -10,7 +10,7 @@ async function renderAccounts() {
       <div class="card fade-in" id="a_panel"><div class="empty">Loading…</div></div>
       <div class="card fade-in">
         <h2>How it works</h2>
-        <p class="hint">Every Cloud Bank customer gets exactly one account, opened under the one name they registered with. Money only ever moves between accounts through a real transfer — see the Transfers page.</p>
+        <p class="hint">Every VeeraBank customer gets exactly one account, opened under the one name they registered with. Money only ever moves between accounts through a real transfer — see the Transfers page.</p>
       </div>
     </div>
   `;

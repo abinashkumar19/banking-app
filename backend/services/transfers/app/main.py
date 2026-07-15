@@ -31,13 +31,6 @@ router = APIRouter(prefix="/transfers")
 transfers_table = table(SERVICE_NAME)
 accounts_table = table("accounts")
 
-# Static in-cluster DNS name of the users-service, same pattern as
-# accounts-service - used to snapshot the sender's name/email onto the
-# transfer record so the recipient can see exactly who sent them money.
-USERS_SERVICE_URL = os.environ.get(
-    "USERS_SERVICE_URL", "http://users-svc.veerabank.svc.cluster.local"
-).rstrip("/")
-
 # Same per-user activity-history Lambda (behind API Gateway) that
 # users-service writes to on registration - see backend/lambdas/
 # transactions_history and terraform/lambda.tf. Optional: a transfer
@@ -75,29 +68,10 @@ class Transfer(BaseModel):
     to_account_id: str
     from_user_id: str
     to_user_id: str
-    from_user_name: Optional[str] = None
-    from_user_email: Optional[str] = None
-    to_user_name: Optional[str] = None
-    to_user_email: Optional[str] = None
     amount: Decimal
     note: Optional[str] = None
     status: str
     created_at: str
-
-
-def _fetch_user_identity(user_id: str) -> dict:
-    """Best-effort lookup of a user's name/email for display purposes.
-    Never blocks a transfer - if users-service is unreachable, the
-    transfer still completes, it just won't carry a sender/recipient
-    name and email snapshot."""
-    try:
-        resp = requests.get(f"{USERS_SERVICE_URL}/users/{user_id}", timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-        return {"full_name": data.get("full_name"), "email": data.get("email")}
-    except Exception as exc:  # noqa: BLE001
-        print(f"[transfers] failed to fetch user identity for {user_id}: {exc}")
-        return {"full_name": None, "email": None}
 
 
 def _get_account(account_id: str) -> dict:
@@ -147,18 +121,12 @@ def create_transfer(req: TransferRequest):
 
     transfer_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
-    from_identity = _fetch_user_identity(from_acct["user_id"])
-    to_identity = _fetch_user_identity(to_acct["user_id"])
     transfer_item = {
         "id": transfer_id,
         "from_account_id": req.from_account_id,
         "to_account_id": req.to_account_id,
         "from_user_id": from_acct["user_id"],
         "to_user_id": to_acct["user_id"],
-        "from_user_name": from_identity["full_name"] or from_acct.get("owner_name"),
-        "from_user_email": from_identity["email"],
-        "to_user_name": to_identity["full_name"] or to_acct.get("owner_name"),
-        "to_user_email": to_identity["email"],
         "amount": req.amount,
         "note": req.note or "",
         "status": "completed",

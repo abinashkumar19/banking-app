@@ -25,14 +25,9 @@ def healthz():
 @app.get("/statements/{account_id}")
 def statement(
     account_id: str,
-    from_ts: Optional[str] = Query(None, description="ISO 8601 datetime, inclusive lower bound"),
-    to_ts: Optional[str] = Query(None, description="ISO 8601 datetime, inclusive upper bound"),
+    from_date: Optional[str] = Query(None, description="ISO date, inclusive"),
+    to_date: Optional[str] = Query(None, description="ISO date, inclusive"),
 ):
-    """Account is required (path param) - a statement can never be pulled
-    without one. The window is a precise timestamp range (not just a
-    day), so callers can ask for things like 'the last 30 minutes',
-    not just whole calendar days. ISO 8601 UTC timestamps sort
-    lexicographically, so plain string comparison is enough."""
     account = get_account_or_404(account_id)
 
     sent = transfers_table.query(IndexName="from_account_id-index", KeyConditionExpression="from_account_id = :a", ExpressionAttributeValues={":a": account_id}).get("Items", [])
@@ -44,10 +39,10 @@ def statement(
     for t in received:
         lines.append({"date": t["created_at"], "description": f"Transfer in{(' - ' + t['note']) if t.get('note') else ''}", "amount": Decimal(t["amount"]), "transfer_id": t["id"]})
 
-    if from_ts:
-        lines = [l for l in lines if l["date"] >= from_ts]
-    if to_ts:
-        lines = [l for l in lines if l["date"] <= to_ts]
+    if from_date:
+        lines = [l for l in lines if l["date"][:10] >= from_date]
+    if to_date:
+        lines = [l for l in lines if l["date"][:10] <= to_date]
 
     lines.sort(key=lambda l: l["date"])
     total_in = sum((l["amount"] for l in lines if l["amount"] > 0), Decimal(0))
@@ -58,7 +53,7 @@ def statement(
         "account_number": account["account_number"],
         "owner_name": account["owner_name"],
         "current_balance": account["balance"],
-        "period": {"from": from_ts, "to": to_ts},
+        "period": {"from": from_date, "to": to_date},
         "total_credits": total_in,
         "total_debits": total_out,
         "line_count": len(lines),

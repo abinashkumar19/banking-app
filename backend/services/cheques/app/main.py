@@ -25,12 +25,10 @@ class ChequeIssue(BaseModel):
     account_id: str
     payee_name: str
     amount: Decimal
-    # Optional on purpose (real cheques can be issued payable to someone
-    # who isn't a VeeraBank customer at all). If given, it must be a real
-    # account number - the money actually lands there when the cheque
-    # clears, via the same atomic double-entry pattern transfers-service
-    # uses. If omitted, clearing just debits the issuer, as before.
-    payee_account_number: Optional[str] = None
+    # Required: a cheque must name a real destination account, so the
+    # money actually lands somewhere the instant it clears (see clear()
+    # below) instead of just vanishing from the issuer's balance.
+    payee_account_number: str
 
     @field_validator("amount")
     @classmethod
@@ -74,12 +72,10 @@ def issue(payload: ChequeIssue):
     if account["user_id"] != payload.user_id:
         raise HTTPException(status_code=403, detail="You can only issue cheques from your own account")
 
-    payee_account_id = None
-    if payload.payee_account_number:
-        payee_account = _resolve_payee_account(payload.payee_account_number)
-        if payee_account["account_id"] == payload.account_id:
-            raise HTTPException(status_code=400, detail="You can't write a cheque to your own account")
-        payee_account_id = payee_account["account_id"]
+    payee_account = _resolve_payee_account(payload.payee_account_number)
+    if payee_account["account_id"] == payload.account_id:
+        raise HTTPException(status_code=400, detail="You can't write a cheque to your own account")
+    payee_account_id = payee_account["account_id"]
 
     item = {
         "id": new_id(),

@@ -99,8 +99,9 @@ setInterval(tickClock, 1000);
 
 /* ---------------------------------------------------------------------- */
 async function render() {
-  if (!currentUser) { renderGate(); return; }
+  if (!currentUser) { removeChatbot(); renderGate(); return; }
   renderShell();
+  mountChatbot();
   if (currentTab === "dashboard") await renderDashboard();
   else if (currentTab === "accounts") await renderAccounts();
   else if (currentTab === "transfers") await renderTransfers();

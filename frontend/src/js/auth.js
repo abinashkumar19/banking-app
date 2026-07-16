@@ -36,28 +36,62 @@ function renderAuthBody() {
     `;
   } else {
     el.innerHTML = `
-      <label>Full name</label><input id="r_name" placeholder="Ada Lovelace" />
-      <label>Email</label><input id="r_email" type="email" placeholder="you@cloudbank.com" />
-      <label>Phone</label><input id="r_phone" placeholder="+1 555 000 1234" />
-      <label>Password</label><input id="r_password" type="password" placeholder="Create a password" />
-      <button class="btn gold" style="width:100%" onclick="doRegister()">Create account</button>
+      <label>Full name</label><input id="r_name" placeholder="Ada Lovelace" ${regOtpSent ? "disabled" : ""} value="${regDraft.full_name || ""}" />
+      <label>Email</label><input id="r_email" type="email" placeholder="you@cloudbank.com" ${regOtpSent ? "disabled" : ""} value="${regDraft.email || ""}" />
+      <label>Phone</label><input id="r_phone" placeholder="+1 555 000 1234" ${regOtpSent ? "disabled" : ""} value="${regDraft.phone || ""}" />
+      <label>Password</label><input id="r_password" type="password" placeholder="Create a password" ${regOtpSent ? "disabled" : ""} value="${regDraft.password || ""}" />
+      ${regOtpSent ? `
+        <label>Verification code</label>
+        <p class="hint">We emailed a 6-digit code to <strong>${regDraft.email}</strong>. It expires in 5 minutes.</p>
+        <input id="r_otp" inputmode="numeric" maxlength="6" placeholder="123456" />
+        <button class="btn gold" style="width:100%" onclick="verifyRegistrationOtp()">Verify & create account</button>
+        <button type="button" class="btn ghost sm" style="margin-top:8px;" onclick="resetRegistrationOtp()">Use a different email</button>
+      ` : `
+        <button class="btn gold" style="width:100%" onclick="startRegistration()">Send verification code</button>
+      `}
       <div id="r_msg"></div>
     `;
   }
 }
 
-async function doRegister() {
+let regOtpSent = false;
+let regDraft = {};
+
+async function startRegistration() {
   const el = document.getElementById("r_msg");
   try {
-    const body = {
+    regDraft = {
       full_name: document.getElementById("r_name").value,
       email: document.getElementById("r_email").value,
       phone: document.getElementById("r_phone").value,
       password: document.getElementById("r_password").value,
     };
-    const user = await api("/users/register", { method: "POST", body: JSON.stringify(body) });
+    if (!regDraft.full_name || !regDraft.email || !regDraft.phone || !regDraft.password) {
+      throw new Error("Fill in every field first.");
+    }
+    await api("/users/otp/send", { method: "POST", body: JSON.stringify({ email: regDraft.email, purpose: "signup" }) });
+    regOtpSent = true;
+    renderAuthBody();
+    toast("Verification code sent to your email.");
+  } catch (e) { el.innerHTML = `<div class="msg err">${e.message}</div>`; }
+}
+
+function resetRegistrationOtp() {
+  regOtpSent = false;
+  renderAuthBody();
+}
+
+async function verifyRegistrationOtp() {
+  const el = document.getElementById("r_msg");
+  try {
+    const code = document.getElementById("r_otp").value.trim();
+    if (!code) throw new Error("Enter the code we emailed you.");
+    await api("/users/otp/verify", { method: "POST", body: JSON.stringify({ email: regDraft.email, code, purpose: "signup" }) });
+    const user = await api("/users/register", { method: "POST", body: JSON.stringify(regDraft) });
     setUser(user);
     toast("Account created — welcome to Cloud Bank.");
+    regOtpSent = false;
+    regDraft = {};
     currentTab = "dashboard";
     afterAuth();
   } catch (e) { el.innerHTML = `<div class="msg err">${e.message}</div>`; }

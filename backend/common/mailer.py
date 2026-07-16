@@ -87,6 +87,48 @@ def send_otp_email(to_email: str, code: str, purpose: str = "signup") -> bool:
     return send_email(to_email, subject, text, html)
 
 
+def send_transfer_sent_email(to_email: str, sender_name: str, recipient_name: str, amount, note: str | None = None) -> bool:
+    """Sent to the person who just sent money - a receipt, basically."""
+    subject = f"You sent ${amount} on Cloud Bank"
+    note_line = f"\nNote: {note}" if note else ""
+    text = (
+        f"Hi {sender_name},\n\n"
+        f"You sent ${amount} to {recipient_name}.{note_line}\n\n"
+        f"If you didn't make this transfer, contact support right away."
+    )
+    html = f"""
+      <div style="font-family:sans-serif; max-width:420px; margin:0 auto;">
+        <h2 style="margin-bottom:4px;">Cloud Bank</h2>
+        <p style="color:#333;">Hi {sender_name},</p>
+        <p style="color:#333;">You sent <strong>${amount}</strong> to <strong>{recipient_name}</strong>.</p>
+        {f'<p style="color:#555; font-size:13px;">Note: {note}</p>' if note else ''}
+        <p style="color:#555; font-size:13px;">If you didn't make this transfer, contact support right away.</p>
+      </div>
+    """
+    return send_email(to_email, subject, text, html)
+
+
+def send_transfer_received_email(to_email: str, recipient_name: str, sender_name: str, amount, note: str | None = None) -> bool:
+    """Sent to the person who just received money."""
+    subject = f"You received ${amount} on Cloud Bank"
+    note_line = f"\nNote: {note}" if note else ""
+    text = (
+        f"Hi {recipient_name},\n\n"
+        f"{sender_name} sent you ${amount}.{note_line}\n\n"
+        f"It's already reflected in your account balance."
+    )
+    html = f"""
+      <div style="font-family:sans-serif; max-width:420px; margin:0 auto;">
+        <h2 style="margin-bottom:4px;">Cloud Bank</h2>
+        <p style="color:#333;">Hi {recipient_name},</p>
+        <p style="color:#333;"><strong>{sender_name}</strong> sent you <strong>${amount}</strong>.</p>
+        {f'<p style="color:#555; font-size:13px;">Note: {note}</p>' if note else ''}
+        <p style="color:#555; font-size:13px;">It's already reflected in your account balance.</p>
+      </div>
+    """
+    return send_email(to_email, subject, text, html)
+
+
 def send_login_email(to_email: str, full_name: str, when_str: str) -> bool:
     """Sent to a person's own email every time they successfully log in -
     a lightweight "was this you?" notice. Never blocks the login itself;

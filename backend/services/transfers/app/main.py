@@ -23,6 +23,11 @@ from pydantic import BaseModel, Field, field_validator
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from common.aws_clients import dynamodb_client, raw_table_name, table, to_ddb_item
 from common.service_base import new_id, now_iso, write_audit_log
+from common.mailer import send_transfer_sent_email, send_transfer_received_email
+
+USERS_SERVICE_URL = os.environ.get(
+    "USERS_SERVICE_URL", "http://users-svc.veerabank.svc.cluster.local"
+)
 
 SERVICE_NAME = "transfers"
 app = FastAPI(title="VeeraBank Transfers Service", version="2.0.0")
@@ -55,6 +60,7 @@ class TransferRequest(BaseModel):
     note: Optional[str] = None
     sender_name: Optional[str] = Field(None, description="Display name of the sender, sent by the client alongside the transfer")
     sender_email: Optional[str] = Field(None, description="Email of the sender, sent by the client alongside the transfer")
+    account_type: Optional[str] = Field(None, description="'savings' or 'current' - mandatory on the frontend send-money form")
 
     @field_validator("amount")
     @classmethod
@@ -74,6 +80,7 @@ class Transfer(BaseModel):
     note: Optional[str] = None
     sender_name: Optional[str] = None
     sender_email: Optional[str] = None
+    account_type: Optional[str] = None
     status: str
     created_at: str
 
@@ -84,6 +91,19 @@ def _get_account(account_id: str) -> dict:
     if not item or item.get("record_type") != "account":
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
     return item
+
+
+def _get_user(user_id: str) -> Optional[dict]:
+    """Best-effort lookup of a user's email/name via users-service - used
+    only to email the recipient of a transfer. A failure here must never
+    break the transfer itself (money already moved by this point)."""
+    try:
+        resp = requests.get(f"{USERS_SERVICE_URL}/users/{user_id}", timeout=5)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[transfers] failed to look up recipient user {user_id}: {exc}")
+        return None
 
 
 def _write_history_event(user_id: str, event_type: str, details: dict):
@@ -135,6 +155,7 @@ def create_transfer(req: TransferRequest):
         "note": req.note or "",
         "sender_name": req.sender_name or "",
         "sender_email": req.sender_email or "",
+        "account_type": req.account_type or "",
         "status": "completed",
         "created_at": now,
     }
@@ -206,6 +227,25 @@ def create_transfer(req: TransferRequest):
             "sender_email": req.sender_email or "",
         },
     )
+
+    # Email both sides. The sender's own email came with the request
+    # (typed once at signup, never re-typed here); the recipient's has to
+    # be looked up via users-service since a transfer only carries account
+    # ids. Neither lookup nor send can undo the transfer at this point, so
+    # both are best-effort and never raise.
+    if req.sender_email:
+        try:
+            send_transfer_sent_email(req.sender_email, req.sender_name or "there", to_acct["owner_name"], req.amount, req.note)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[transfers] failed to send sender confirmation email: {exc}")
+
+    to_user = _get_user(to_acct["user_id"])
+    if to_user and to_user.get("email"):
+        try:
+            send_transfer_received_email(to_user["email"], to_user.get("full_name") or "there", req.sender_name or "Someone", req.amount, req.note)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[transfers] failed to send recipient notification email: {exc}")
+
     write_audit_log(
         from_acct["user_id"],
         "transfer_sent",

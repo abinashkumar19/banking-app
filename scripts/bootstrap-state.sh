@@ -126,5 +126,12 @@ else
 fi
 
 echo ""
-echo "Done. terraform/main.tf already points at this bucket/table -"
-echo "you can now run 'terraform init' locally, or rerun the GitHub Actions workflow."
+echo "Done. terraform/main.tf now points at bucket: $BUCKET"
+
+if command -v terraform >/dev/null 2>&1; then
+  echo "== Running 'terraform init -reconfigure' so the new bucket takes effect right now =="
+  (cd "$SCRIPT_DIR/../terraform" && terraform init -reconfigure)
+else
+  echo "terraform CLI not found on PATH - install it, then run:"
+  echo "  cd terraform && terraform init -reconfigure"
+fi

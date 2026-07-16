@@ -251,17 +251,19 @@ up — that URL is written to the job summary.
 
 **One-time setup before the first CI run:**
 
-1. **Remote state** (required — GitHub Actions has no local disk between runs):
+1. **Remote state** — the CI workflow itself creates the S3 bucket + DynamoDB
+   lock table on its first run if they don't exist yet (see the "Ensure
+   state bucket + lock table exist" step in `deploy.yml`), so **there's
+   nothing to do here for CI**. `terraform/main.tf`'s `backend "s3"` block
+   already has a bucket name baked in; if that exact bucket doesn't exist
+   in your account, CI creates it automatically on the first push.
 
-   Run the bootstrap script once (in AWS CloudShell, or any shell with the
-   AWS CLI configured against this account):
+   Only run this yourself if you want to run `terraform` **locally**
+   (outside CI) — it does the same thing plus points `main.tf` at whatever
+   bucket it ends up using and runs `terraform init -reconfigure` for you:
    ```bash
    bash scripts/bootstrap-state.sh
    ```
-   This creates the S3 bucket (`veerabank-tfstate-517798688687-6b6ca11c`,
-   versioned + encrypted + public access blocked) and the DynamoDB lock
-   table (`veerabank-terraform-locks`) that `terraform/main.tf`'s
-   `backend "s3"` block already points at. Safe to re-run.
 
 2. **GitHub secrets** (repo → Settings → Secrets and variables → Actions —
    or set them on a GitHub **Environment**, e.g. `production`, and add

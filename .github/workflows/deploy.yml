@@ -57,16 +57,41 @@ jobs:
           BUCKET=$(grep -oP 'bucket\s+= "\K[^"]+' main.tf)
           TABLE=veerabank-terraform-locks
 
-          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-            echo "State bucket $BUCKET already exists."
-          else
-            echo "State bucket $BUCKET doesn't exist yet - creating it."
+          create_bucket() {
             if [ "$AWS_REGION" = "us-east-1" ]; then
               aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION"
             else
               aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
                 --create-bucket-configuration LocationConstraint="$AWS_REGION"
             fi
+          }
+
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "State bucket $BUCKET already exists."
+          else
+            echo "State bucket $BUCKET doesn't exist yet - creating it."
+            # Retry on OperationAborted ("conflicting conditional operation in
+            # progress") which happens when another run is racing to create
+            # the same bucket, or the name was just freed by a delete and S3
+            # hasn't settled yet. Re-check existence between attempts so we
+            # bail out cleanly the moment some run wins the race.
+            ATTEMPT=0
+            MAX_ATTEMPTS=6
+            until create_bucket; do
+              ATTEMPT=$((ATTEMPT + 1))
+              if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+                echo "State bucket $BUCKET now exists (created by a concurrent run)."
+                break
+              fi
+              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                echo "Failed to create $BUCKET after $ATTEMPT attempts." >&2
+                exit 1
+              fi
+              SLEEP=$((10 * ATTEMPT))
+              echo "create-bucket conflicted, retrying in ${SLEEP}s (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
+              sleep "$SLEEP"
+            done
+
             aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
             aws s3api put-bucket-encryption --bucket "$BUCKET" \
               --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'

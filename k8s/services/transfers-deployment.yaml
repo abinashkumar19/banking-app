@@ -29,6 +29,8 @@ spec:
               value: "veerabank-dev"
             - name: TRANSACTIONS_HISTORY_API_URL
               value: "<TRANSACTIONS_HISTORY_API_URL>"
+            - name: USERS_SERVICE_URL
+              value: "http://users-svc.veerabank.svc.cluster.local"
           resources:
             requests:
               cpu: "50m"

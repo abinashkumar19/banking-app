@@ -32,6 +32,12 @@ async function renderTransfers() {
           <button class="btn ghost sm" style="margin-top:0;" onclick="resolveRecipient()" ${mine ? "" : "disabled"}>Look up</button>
         </div>
         <div id="tr_review"></div>
+        <label>Account type</label>
+        <select id="tr_acct_type" ${mine ? "" : "disabled"}>
+          <option value="">Select account type</option>
+          <option value="savings">Savings</option>
+          <option value="current">Current</option>
+        </select>
         <label>Amount</label><input id="tr_amount" type="number" min="0.01" step="0.01" placeholder="0.00" ${mine ? "" : "disabled"} />
         <label>Note (optional)</label><input id="tr_note" placeholder="What's this for?" ${mine ? "" : "disabled"} />
         <p class="hint">Sending as <strong>${currentUser.full_name}</strong> · ${currentUser.email} — the recipient sees this with every transfer.</p>
@@ -81,12 +87,14 @@ async function doTransfer() {
   try {
     if (!mine) throw new Error("Open an account first.");
     if (!resolvedRecipient) { await resolveRecipient(); if (!resolvedRecipient) throw new Error("Look up a valid recipient first."); }
+    const accountType = document.getElementById("tr_acct_type").value;
+    if (!accountType) throw new Error("Select an account type (Savings or Current) first.");
     const amount = Number(document.getElementById("tr_amount").value);
     if (!amount || amount <= 0) throw new Error("Enter an amount.");
     const note = document.getElementById("tr_note").value;
     const body = {
       from_account_id: mine.account_id, to_account_id: resolvedRecipient.account_id, amount,
-      user_id: currentUser.user_id, note,
+      user_id: currentUser.user_id, note, account_type: accountType,
       sender_name: currentUser.full_name, sender_email: currentUser.email,
     };
     await api("/transfers", { method: "POST", body: JSON.stringify(body) });
@@ -95,6 +103,7 @@ async function doTransfer() {
     document.getElementById("tr_number").value = "";
     document.getElementById("tr_amount").value = "";
     document.getElementById("tr_note").value = "";
+    document.getElementById("tr_acct_type").value = "";
     document.getElementById("tr_review").innerHTML = "";
     resolvedRecipient = null;
     loadAccountsSilently();

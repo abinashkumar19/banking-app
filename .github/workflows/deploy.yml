@@ -20,6 +20,14 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Prevents two runs from racing each other on the same S3 state
+# bucket/DynamoDB lock table (that's what was causing repeated
+# "OperationAborted: conflicting conditional operation" errors below).
+# A new push cancels any run that's still in progress.
+concurrency:
+  group: deploy-cloud-bank
+  cancel-in-progress: true
+
 env:
   AWS_REGION: us-east-1
   NAMESPACE: veerabank
@@ -51,6 +59,14 @@ jobs:
         # of main.tf's backend block (so CI and any local run always agree
         # on the same bucket) and create it if it isn't there yet. Safe to
         # re-run - every call is idempotent.
+        #
+        # We don't gate creation on `head-bucket` anymore: head-bucket can
+        # return a false "doesn't exist" (e.g. transient 403/eventual
+        # consistency), which then causes create-bucket to collide with the
+        # bucket that actually already exists, over and over, forever.
+        # Instead we just call create-bucket directly and treat "you already
+        # own this bucket" as success - that's the only real success
+        # condition we care about, since the name is account-ID-suffixed.
         working-directory: terraform
         run: |
           set -euo pipefail
@@ -59,45 +75,43 @@ jobs:
 
           create_bucket() {
             if [ "$AWS_REGION" = "us-east-1" ]; then
-              aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION"
+              aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" 2>/tmp/create-bucket.err
             else
               aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
-                --create-bucket-configuration LocationConstraint="$AWS_REGION"
+                --create-bucket-configuration LocationConstraint="$AWS_REGION" 2>/tmp/create-bucket.err
             fi
           }
 
-          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-            echo "State bucket $BUCKET already exists."
-          else
-            echo "State bucket $BUCKET doesn't exist yet - creating it."
-            # Retry on OperationAborted ("conflicting conditional operation in
-            # progress") which happens when another run is racing to create
-            # the same bucket, or the name was just freed by a delete and S3
-            # hasn't settled yet. Re-check existence between attempts so we
-            # bail out cleanly the moment some run wins the race.
-            ATTEMPT=0
-            MAX_ATTEMPTS=6
-            until create_bucket; do
-              ATTEMPT=$((ATTEMPT + 1))
-              if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-                echo "State bucket $BUCKET now exists (created by a concurrent run)."
-                break
-              fi
-              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-                echo "Failed to create $BUCKET after $ATTEMPT attempts." >&2
-                exit 1
-              fi
-              SLEEP=$((10 * ATTEMPT))
-              echo "create-bucket conflicted, retrying in ${SLEEP}s (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
-              sleep "$SLEEP"
-            done
+          ATTEMPT=0
+          MAX_ATTEMPTS=8
+          BUCKET_READY=false
+          until create_bucket; do
+            ATTEMPT=$((ATTEMPT + 1))
+            if grep -q "BucketAlreadyOwnedByYou" /tmp/create-bucket.err 2>/dev/null; then
+              echo "Bucket $BUCKET already exists and is owned by this account - continuing."
+              BUCKET_READY=true
+              break
+            fi
+            cat /tmp/create-bucket.err >&2 || true
+            if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+              echo "Failed to create $BUCKET after $ATTEMPT attempts." >&2
+              exit 1
+            fi
+            SLEEP=$((15 * ATTEMPT))
+            echo "create-bucket conflicted, retrying in ${SLEEP}s (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
+            sleep "$SLEEP"
+          done
 
-            aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
-            aws s3api put-bucket-encryption --bucket "$BUCKET" \
-              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-            aws s3api put-public-access-block --bucket "$BUCKET" \
-              --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+          if [ "$BUCKET_READY" != "true" ]; then
+            echo "State bucket $BUCKET created."
           fi
+
+          # These are safe to re-apply even if the bucket already existed.
+          aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
+          aws s3api put-bucket-encryption --bucket "$BUCKET" \
+            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+          aws s3api put-public-access-block --bucket "$BUCKET" \
+            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
           if aws dynamodb describe-table --table-name "$TABLE" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Lock table $TABLE already exists."

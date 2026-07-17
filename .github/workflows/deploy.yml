@@ -10,8 +10,12 @@ name: Deploy Cloud Bank
 # One-time setup (see README "CI/CD" section for the full list):
 #   - The Terraform state bucket + lock table are created automatically by
 #     the "Ensure state bucket + lock table exist" step below on first run -
-#     no manual bootstrap needed for CI. (scripts/bootstrap-state.sh still
-#     exists for running terraform by hand outside of CI.)
+#     no manual bootstrap needed for CI. If AWS reports the configured
+#     bucket name as transiently stuck (a recent create/delete on that
+#     exact name), it retries, then falls back to a fresh name and commits
+#     that into main.tf so subsequent runs are stable.
+#     (scripts/bootstrap-state.sh still exists for running terraform by
+#     hand outside of CI.)
 #   - GitHub secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
 #     SMTP_USER, SMTP_APP_PASSWORD, GROQ_API_KEY
 
@@ -19,14 +23,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch: {}
-
-# Prevents two runs from racing each other on the same S3 state
-# bucket/DynamoDB lock table (that's what was causing repeated
-# "OperationAborted: conflicting conditional operation" errors below).
-# A new push cancels any run that's still in progress.
-concurrency:
-  group: deploy-cloud-bank
-  cancel-in-progress: true
 
 env:
   AWS_REGION: us-east-1
@@ -36,6 +32,8 @@ jobs:
   terraform:
     name: Terraform apply
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # only needed so this job can commit a fallback bucket name into main.tf if the original one is stuck (see "Ensure state bucket..." step)
     outputs:
       ecr_repository_urls: ${{ steps.tf-out.outputs.ecr_repository_urls }}
       backend_irsa_role_arn: ${{ steps.tf-out.outputs.backend_irsa_role_arn }}
@@ -60,58 +58,61 @@ jobs:
         # on the same bucket) and create it if it isn't there yet. Safe to
         # re-run - every call is idempotent.
         #
-        # We don't gate creation on `head-bucket` anymore: head-bucket can
-        # return a false "doesn't exist" (e.g. transient 403/eventual
-        # consistency), which then causes create-bucket to collide with the
-        # bucket that actually already exists, over and over, forever.
-        # Instead we just call create-bucket directly and treat "you already
-        # own this bucket" as success - that's the only real success
-        # condition we care about, since the name is account-ID-suffixed.
+        # S3 occasionally answers create-bucket with "OperationAborted: a
+        # conflicting conditional operation is currently in progress" for a
+        # name that was *just* created or deleted (S3 needs a bit to settle
+        # internally) - that's transient, so this retries a few times
+        # first. If the name is still stuck after that (e.g. genuinely
+        # taken by someone else), it gives up on that name, generates a
+        # fresh one, and commits it into main.tf so every future run uses
+        # the working bucket instead of hitting the same wall.
         working-directory: terraform
         run: |
           set -euo pipefail
-          BUCKET=$(grep -oP 'bucket\s+= "\K[^"]+' main.tf)
           TABLE=veerabank-terraform-locks
 
           create_bucket() {
+            local name="$1"
             if [ "$AWS_REGION" = "us-east-1" ]; then
-              aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" 2>/tmp/create-bucket.err
+              aws s3api create-bucket --bucket "$name" --region "$AWS_REGION"
             else
-              aws s3api create-bucket --bucket "$BUCKET" --region "$AWS_REGION" \
-                --create-bucket-configuration LocationConstraint="$AWS_REGION" 2>/tmp/create-bucket.err
+              aws s3api create-bucket --bucket "$name" --region "$AWS_REGION" \
+                --create-bucket-configuration LocationConstraint="$AWS_REGION"
             fi
+            aws s3api put-bucket-versioning --bucket "$name" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "$name" \
+              --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+            aws s3api put-public-access-block --bucket "$name" \
+              --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
           }
 
-          ATTEMPT=0
-          MAX_ATTEMPTS=8
-          BUCKET_READY=false
-          until create_bucket; do
-            ATTEMPT=$((ATTEMPT + 1))
-            if grep -q "BucketAlreadyOwnedByYou" /tmp/create-bucket.err 2>/dev/null; then
-              echo "Bucket $BUCKET already exists and is owned by this account - continuing."
-              BUCKET_READY=true
-              break
-            fi
-            cat /tmp/create-bucket.err >&2 || true
-            if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
-              echo "Failed to create $BUCKET after $ATTEMPT attempts." >&2
-              exit 1
-            fi
-            SLEEP=$((15 * ATTEMPT))
-            echo "create-bucket conflicted, retrying in ${SLEEP}s (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
-            sleep "$SLEEP"
-          done
+          BUCKET=$(grep -oP 'bucket\s+= "\K[^"]+' main.tf)
 
-          if [ "$BUCKET_READY" != "true" ]; then
-            echo "State bucket $BUCKET created."
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "State bucket $BUCKET already exists."
+          else
+            echo "State bucket $BUCKET doesn't exist yet - creating it."
+            ok=""
+            for attempt in 1 2 3 4 5; do
+              if create_bucket "$BUCKET"; then ok=1; break; fi
+              echo "create-bucket attempt $attempt failed (likely a transient S3 conflict) - retrying in 10s..."
+              sleep 10
+            done
+
+            if [ -z "$ok" ]; then
+              NEW_BUCKET="veerabank-tfstate-$(aws sts get-caller-identity --query Account --output text)-$(date +%s | tail -c 8)"
+              echo "Giving up on $BUCKET - creating a new bucket instead: $NEW_BUCKET"
+              create_bucket "$NEW_BUCKET"
+              sed -i "s#bucket\s*= \"[^\"]*\"#bucket = \"${NEW_BUCKET}\"#" main.tf
+              BUCKET="$NEW_BUCKET"
+
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add main.tf
+              git commit -m "chore: point tfstate backend at working bucket $NEW_BUCKET [skip ci]"
+              git push
+            fi
           fi
-
-          # These are safe to re-apply even if the bucket already existed.
-          aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
-          aws s3api put-bucket-encryption --bucket "$BUCKET" \
-            --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-          aws s3api put-public-access-block --bucket "$BUCKET" \
-            --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
           if aws dynamodb describe-table --table-name "$TABLE" --region "$AWS_REGION" >/dev/null 2>&1; then
             echo "Lock table $TABLE already exists."

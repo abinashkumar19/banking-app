@@ -30,7 +30,6 @@ function openOnboarding() {
       </div>
 
       <button class="btn" style="width:100%" onclick="doOnboardCreateAccount()">Open my account</button>
-      <button class="btn ghost" style="width:100%" onclick="closeOnboarding()">I'll do this later</button>
       <div id="ob-msg"></div>
     </div>
   `;

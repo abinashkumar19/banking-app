@@ -84,8 +84,12 @@ Add the following secrets to your GitHub repository:
 
 
 AWS_ACCESS_KEY_ID
+
 AWS_SECRET_ACCESS_KEY
+
 GROQ_API_KEY
+
 SMTP_USER
+
 SMTP_APP_PASSWORD
     

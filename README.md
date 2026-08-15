@@ -1,35 +1,91 @@
+# VeeraBank EKS
 
-```
+Cloud-native banking application built using **AWS EKS, Terraform, Kubernetes, DynamoDB, Aurora MySQL, Lambda, S3, SNS, SQS, SES, API Gateway, ECR, and Groq**.
+
+---
+
+## 🏗️ Architecture
+
+<img src="https://images.openai.com/static-rsc-4/ZJXCKWNftQQL9vGY8YKxBChV_FtYN4Puo2HQM2XLLV2Vuy0QZS9KR1SQuZzdZPLsubMLiF-tIDxe102oKcLA-bWyXYPUIVi79xrqLd3JYoC0LSXv1jVxAw6XeDY5ySDiZcYUJuTyTpM3l1f7ud-1q7TWmopB31wIXBAP9QhHl6gORKMX6cA3UZ_uO1jSCV3X?purpose=fullsize" alt="VeeraBank AWS Architecture" width="100%">
+
+---
+
+## 📁 Project Structure
+
+```text
 veerabank-eks/
 ├── terraform/
-│   ├── rds.tf                # Aurora MySQL replica of the users table (fed by users-db-sync)
-│   ├── s3.tf                 # per-user history bucket
-│   ├── lambda.tf             # user-history Lambda+API GW, notification-writer, users-db-sync
+│   ├── rds.tf                # Aurora MySQL replica of the users table
+│   ├── s3.tf                 # Per-user history bucket
+│   ├── lambda.tf             # Lambda + API Gateway resources
 │   ├── ses.tf                # SES sender identity for welcome emails
-│   ├── sns.tf                # user-registered topic: email sub + SQS/Lambda sub
-│   ├── dynamodb.tf           # users table (streams-enabled) + accounts + transfers + otp_codes + 16 generic tables
-│   └── vpc.tf eks.tf ecr.tf variables.tf outputs.tf main.tf
+│   ├── sns.tf                # User-registered SNS topic
+│   ├── dynamodb.tf           # DynamoDB tables + Streams
+│   ├── vpc.tf                # VPC configuration
+│   ├── eks.tf                # EKS cluster configuration
+│   ├── ecr.tf                # ECR repositories
+│   ├── variables.tf          # Terraform variables
+│   ├── outputs.tf            # Terraform outputs
+│   └── main.tf               # Main Terraform configuration
+│
 ├── backend/
-│   ├── common/                # shared DynamoDB, SNS, S3, and SMTP-mailer helpers
+│   ├── common/
+│   │   └── Shared DynamoDB, SNS, S3 and SMTP helpers
+│   │
 │   ├── lambdas/
-│   │   ├── transactions_history/  # general-purpose per-user S3 history, behind API Gateway
-│   │   ├── notification_writer/   # SQS -> DynamoDB notifications table + SES welcome email
-│   │   └── users_db_sync/         # DynamoDB Streams -> Aurora MySQL replication
+│   │   ├── transactions_history/
+│   │   │   └── General-purpose per-user S3 history
+│   │   │
+│   │   ├── notification_writer/
+│   │   │   └── SQS → DynamoDB + SES welcome email
+│   │   │
+│   │   └── users_db_sync/
+│   │       └── DynamoDB Streams → Aurora MySQL
+│   │
 │   └── services/
-│       ├── accounts/          # account CRUD + balance (DynamoDB)
-│       ├── transactions/      # atomic balance update (DynamoDB) + history (S3 via Lambda)
-│       ├── users/             # register (OTP-gated) + login + profile update, SNS publish + history event
-│       ├── chatbot/           # stateless Groq chat-completions wrapper for the support widget
-│       ├── transfers/ cards/ loans/ payments/ beneficiaries/
-│       ├── statements/ notifications/ kyc/ fixed-deposits/ cheques/
-│       ├── disputes/ audit-log/ fraud-detection/ support-tickets/
-│       └── rewards/ admin/ reports/      (generic CRUD template, 17 services)
-├── frontend/                  # single-page HTML/CSS/JS dashboard, served via nginx
+│       ├── accounts/
+│       ├── transactions/
+│       ├── users/
+│       ├── chatbot/
+│       ├── transfers/
+│       ├── cards/
+│       ├── loans/
+│       ├── payments/
+│       ├── beneficiaries/
+│       ├── statements/
+│       ├── notifications/
+│       ├── kyc/
+│       ├── fixed-deposits/
+│       ├── cheques/
+│       ├── disputes/
+│       ├── audit-log/
+│       ├── fraud-detection/
+│       ├── support-tickets/
+│       ├── rewards/
+│       ├── admin/
+│       └── reports/
+│
+├── frontend/
+│   └── Single-page HTML/CSS/JS banking dashboard
+│
 └── k8s/
-    ├── services/               # deployment + service manifest per microservice
-    ├── frontend/               # frontend deployment + service
-    ├── app-secrets.example.yaml # shape of the app-secrets Secret (SMTP + Groq) - reference only, never fill in and apply for real
-    ├── ingress.yaml            # path-based routing: /accounts, /users, /transfers, /chatbot, ... , / -> frontend
+    ├── services/
+    │   └── Deployment + Service manifest per microservice
+    ├── frontend/
+    ├── app-secrets.example.yaml
+    ├── ingress.yaml
     ├── namespace.yaml
-    └── serviceaccount.yaml     # one shared IRSA-linked service account for all backend pods
-```
+    └── serviceaccount.yaml
+
+
+## 🔐 Required GitHub Secrets
+
+Add the following secrets to your GitHub repository:
+
+
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+GROQ_API_KEY
+SMTP_USER
+SMTP_APP_PASSWORD
+    
